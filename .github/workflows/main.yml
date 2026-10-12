@@ -20,6 +20,9 @@ jobs:
 
   build:
     needs: generate-matrix
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix: 
@@ -34,7 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: msys2/setup-msys2@v2
+      - id: msys2
+        uses: msys2/setup-msys2@v2
         with:
           msystem: ${{ matrix.msystem }}
           update: true
@@ -49,6 +53,24 @@ jobs:
         run: |
           msys2 -c 'pacman --noconfirm -Suuy'
           msys2 -c 'pacman --noconfirm -Suu'
+
+      - name: Download dynamic-base runtime
+        uses: actions/download-artifact@v8
+        with:
+          name: install
+          repository: msys2/msys2-runtime
+          # https://github.com/msys2/msys2-runtime/pull/381
+          run-id: 38147439453
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/msys2-runtime
+
+      - name: Replace MSYS2 runtime DLL
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          Copy-Item -LiteralPath "$env:RUNNER_TEMP/msys2-runtime/usr/bin/msys-2.0.dll" `
+            -Destination "$env:MSYS2_LOCATION/usr/bin/msys-2.0.dll" -Force
 
       - name: Run tests
         uses: ./
